@@ -1,0 +1,163 @@
+{
+  "type": "object",
+  "title": "ZATCA Tax Invoice",
+  "properties": {
+    "invoice_type": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "simplified"
+      ]
+    },
+    "invoice_number": {
+      "type": "string"
+    },
+    "invoice_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "invoice_time": {
+      "type": "string"
+    },
+    "seller": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "vat_number": {
+          "type": "string"
+        },
+        "additional_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "vat_number"
+      ]
+    },
+    "buyer": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "vat_number": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "line_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unit_price": {
+            "type": "number"
+          },
+          "discount_amount": {
+            "type": "number"
+          },
+          "tax_rate": {
+            "type": "number"
+          },
+          "tax_amount": {
+            "type": "number"
+          },
+          "line_total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "description",
+          "quantity",
+          "unit_price",
+          "line_total"
+        ]
+      }
+    },
+    "totals": {
+      "type": "object",
+      "properties": {
+        "subtotal": {
+          "type": "number"
+        },
+        "discount_total": {
+          "type": "number"
+        },
+        "tax_total": {
+          "type": "number"
+        },
+        "grand_total": {
+          "type": "number"
+        },
+        "amount_due": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "grand_total",
+        "tax_total"
+      ]
+    },
+    "payment": {
+      "type": "object",
+      "properties": {
+        "payment_method": {
+          "type": "string"
+        },
+        "paid_amount": {
+          "type": "number"
+        },
+        "balance_due": {
+          "type": "number"
+        }
+      }
+    },
+    "zatca": {
+      "type": "object",
+      "properties": {
+        "irn": {
+          "type": "string"
+        },
+        "qr_code": {
+          "type": "string"
+        },
+        "xml_hash": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": [
+    "invoice_type",
+    "invoice_number",
+    "invoice_date",
+    "seller",
+    "buyer",
+    "line_items",
+    "totals"
+  ]
+}

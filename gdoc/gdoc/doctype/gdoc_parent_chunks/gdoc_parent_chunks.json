@@ -1,0 +1,73 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-24 13:03:36.191625",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "pid",
+  "text",
+  "column_break_enwz",
+  "url",
+  "parent_doc_id",
+  "file_name"
+ ],
+ "fields": [
+  {
+   "fieldname": "pid",
+   "fieldtype": "Data",
+   "label": "PID"
+  },
+  {
+   "fieldname": "text",
+   "fieldtype": "Long Text",
+   "label": "Parent Text"
+  },
+  {
+   "fieldname": "url",
+   "fieldtype": "Data",
+   "label": "Doc Url"
+  },
+  {
+   "fieldname": "parent_doc_id",
+   "fieldtype": "Data",
+   "label": "Parent Doc Id"
+  },
+  {
+   "fieldname": "file_name",
+   "fieldtype": "Data",
+   "label": "File name"
+  },
+  {
+   "fieldname": "column_break_enwz",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-24 14:47:34.256666",
+ "modified_by": "Administrator",
+ "module": "GDoc",
+ "name": "GDoc Parent Chunks",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

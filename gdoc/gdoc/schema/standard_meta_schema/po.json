@@ -1,0 +1,23 @@
+{
+    "po_number": null,
+    "po_date": null,
+    "delivery_date": null,
+    "vendor_name": null,
+    "buyer_name": null,
+    "currency": null,
+    "payment_terms": null,
+    "subtotal": null,
+    "tax_amount": null,
+    "grand_total": null,
+    "line_items": [
+        {
+            "item_code": null,
+            "description": null,
+            "quantity": null,
+            "unit_of_measure": null,
+            "unit_price": null,
+            "line_total": null
+        }
+    ],
+    "extra_fields": {}
+}

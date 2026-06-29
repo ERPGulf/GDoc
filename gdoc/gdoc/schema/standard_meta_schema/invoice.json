@@ -1,0 +1,21 @@
+{
+    "invoice_number": null,
+    "invoice_date": null,
+    "due_date": null,
+    "vendor_name": null,
+    "buyer_name": null,
+    "currency": null,
+    "payment_terms": null,
+    "grand_total": null,
+    "tax_amount": null,
+    "subtotal": null,
+    "line_items": [
+        {
+            "description": null,
+            "quantity": null,
+            "unit_price": null,
+            "tax_rate": null,
+            "line_total": null
+        }
+    ]
+}
