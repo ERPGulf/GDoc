@@ -1,21 +1,69 @@
 {
-    "invoice_number": null,
-    "invoice_date": null,
-    "due_date": null,
-    "vendor_name": null,
-    "buyer_name": null,
-    "currency": null,
-    "payment_terms": null,
-    "grand_total": null,
-    "tax_amount": null,
-    "subtotal": null,
-    "line_items": [
-        {
-            "description": null,
-            "quantity": null,
-            "unit_price": null,
-            "tax_rate": null,
-            "line_total": null
-        }
-    ]
+    "invoice_number": {
+        "value": null,
+        "data_type": "string"
+    },
+    "invoice_date": {
+        "value": null,
+        "data_type": "date"
+    },
+    "due_date": {
+        "value": null,
+        "data_type": "date"
+    },
+    "vendor_name": {
+        "value": null,
+        "data_type": "string"
+    },
+    "buyer_name": {
+        "value": null,
+        "data_type": "string"
+    },
+    "currency": {
+        "value": null,
+        "data_type": "string"
+    },
+    "payment_terms": {
+        "value": null,
+        "data_type": "string"
+    },
+    "grand_total": {
+        "value": null,
+        "data_type": "float"
+    },
+    "tax_amount": {
+        "value": null,
+        "data_type": "float"
+    },
+    "subtotal": {
+        "value": null,
+        "data_type": "float"
+    },
+    "line_items": {
+        "value": [
+            {
+                "description": {
+                    "value": null,
+                    "data_type": "string"
+                },
+                "quantity": {
+                    "value": null,
+                    "data_type": "float"
+                },
+                "unit_price": {
+                    "value": null,
+                    "data_type": "float"
+                },
+                "tax_rate": {
+                    "value": null,
+                    "data_type": "string"
+                },
+                "line_total": {
+                    "value": null,
+                    "data_type": "float"
+                }
+            }
+        ],
+        "data_type": "list"
+    }
 }

@@ -7,10 +7,15 @@
  "field_order": [
   "source",
   "file_name",
-  "file_type",
+  "ai_tags",
+  "metadata",
   "column_break_ailr",
   "uploaded_by",
-  "changai_status"
+  "changai_status",
+  "doc_type",
+  "file_type",
+  "erp_link_doc",
+  "erp_link_name"
  ],
  "fields": [
   {
@@ -42,12 +47,41 @@
   {
    "fieldname": "column_break_ailr",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "doc_type",
+   "fieldtype": "Select",
+   "label": "Doc type",
+   "options": "invoice\npo\ncustom"
+  },
+  {
+   "fieldname": "metadata",
+   "fieldtype": "JSON",
+   "label": "metadata"
+  },
+  {
+   "fieldname": "ai_tags",
+   "fieldtype": "Table MultiSelect",
+   "label": "ai tags",
+   "options": "Document Tag Link"
+  },
+  {
+   "fieldname": "erp_link_doc",
+   "fieldtype": "Link",
+   "label": "ERP Link Doctype",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "erp_link_name",
+   "fieldtype": "Dynamic Link",
+   "label": "ERP Link name",
+   "options": "erp_link_doc"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-25 13:04:05.433092",
+ "modified": "2026-06-30 16:25:46.413057",
  "modified_by": "Administrator",
  "module": "GDoc",
  "name": "GDOCs",

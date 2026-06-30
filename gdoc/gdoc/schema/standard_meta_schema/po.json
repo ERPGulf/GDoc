@@ -1,23 +1,58 @@
 {
-    "po_number": null,
-    "po_date": null,
-    "delivery_date": null,
-    "vendor_name": null,
-    "buyer_name": null,
-    "currency": null,
-    "payment_terms": null,
-    "subtotal": null,
-    "tax_amount": null,
-    "grand_total": null,
-    "line_items": [
-        {
-            "item_code": null,
-            "description": null,
-            "quantity": null,
-            "unit_of_measure": null,
-            "unit_price": null,
-            "line_total": null
+    "po_number": {
+        "data_type": "string"
+    },
+    "po_date": {
+        "data_type": "date"
+    },
+    "delivery_date": {
+        "data_type": "date"
+    },
+    "vendor_name": {
+        "data_type": "string"
+    },
+    "buyer_name": {
+        "data_type": "string"
+    },
+    "currency": {
+        "data_type": "string"
+    },
+    "payment_terms": {
+        "data_type": "string"
+    },
+    "subtotal": {
+        "data_type": "float"
+    },
+    "tax_amount": {
+        "data_type": "float"
+    },
+    "grand_total": {
+        "data_type": "float"
+    },
+    "line_items": {
+        "data_type": "list",
+        "items": {
+            "item_code": {
+                "data_type": "string"
+            },
+            "description": {
+                "data_type": "string"
+            },
+            "quantity": {
+                "data_type": "float"
+            },
+            "unit_of_measure": {
+                "data_type": "string"
+            },
+            "unit_price": {
+                "data_type": "float"
+            },
+            "line_total": {
+                "data_type": "float"
+            }
         }
-    ],
-    "extra_fields": {}
+    },
+    "extra_fields": {
+        "data_type": "object"
+    }
 }
