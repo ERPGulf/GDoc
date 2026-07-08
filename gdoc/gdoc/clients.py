@@ -42,8 +42,6 @@ def _post_json(url: str, headers: Dict[str, str], payload: Dict[str, Any], timeo
         return {"ok": False, "status_code": None, "body": {"error": str(e)}}
 
 
-
-
 def local_llm_request(prompt: str) -> str:
     config = ChangAIConfig.get()
     url = f"{config['URL'].rstrip('/')}/api/generate"
@@ -137,8 +135,19 @@ def _build_gemini_contents(prompt: str):
 
 def _clean_gemini_response_text(text: str) -> str:
     text = (text or "").strip()
-    if text.startswith("```"):
-        text = text.replace("```json", "").replace("```", "").strip()
+    clean = (
+        text
+        .removeprefix("```json")
+        .removeprefix("```")
+        .removesuffix("```")
+        .strip()
+    )
+    
+    try:
+        return json.loads(clean)  # always return dict, never raw string
+    except json.JSONDecodeError as e:
+        frappe.log_error(f"Gemini returned invalid JSON: {raw}", "call_gemini: parse error")
+        return None
     return text
 
 

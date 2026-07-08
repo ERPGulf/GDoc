@@ -11,11 +11,12 @@
   "metadata",
   "column_break_ailr",
   "uploaded_by",
-  "changai_status",
+  "index_status",
   "doc_type",
   "file_type",
   "erp_link_doc",
-  "erp_link_name"
+  "erp_link_name",
+  "assignned_to"
  ],
  "fields": [
   {
@@ -39,20 +40,14 @@
    "label": "Uploaded By"
   },
   {
-   "fieldname": "changai_status",
-   "fieldtype": "Select",
-   "label": "Indexing status",
-   "options": "Pending\nProcessing\nChunked\nCompleted"
-  },
-  {
    "fieldname": "column_break_ailr",
    "fieldtype": "Column Break"
   },
   {
    "fieldname": "doc_type",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Doc type",
-   "options": "invoice\npo\ncustom"
+   "options": "DocType"
   },
   {
    "fieldname": "metadata",
@@ -76,12 +71,24 @@
    "fieldtype": "Dynamic Link",
    "label": "ERP Link name",
    "options": "erp_link_doc"
+  },
+  {
+   "fieldname": "assignned_to",
+   "fieldtype": "Link",
+   "label": "Assigned to ",
+   "options": "User"
+  },
+  {
+   "fieldname": "index_status",
+   "fieldtype": "Select",
+   "label": "Indexing status",
+   "options": "Pending\nProcessing\nChunked\nCompleted"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-30 16:25:46.413057",
+ "modified": "2026-07-08 12:53:11.118240",
  "modified_by": "Administrator",
  "module": "GDoc",
  "name": "GDOCs",
