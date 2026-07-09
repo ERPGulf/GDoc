@@ -115,3 +115,8 @@ class RAGPipeline:
         )
         sources = list(dict.fromkeys(c["url"] for c in contexts if c.get("url")))
         return {"answer": answer, "sources": sources}
+
+if __name__ == "__main__":
+    obj = RAGPipeline()
+    response = obj.retrive("What is ai?")
+    print(response)

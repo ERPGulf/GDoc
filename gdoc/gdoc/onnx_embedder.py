@@ -1,7 +1,8 @@
 import onnxruntime as ort
 import numpy as np
 from transformers import AutoTokenizer
-
+# This class is used for converting model files into onnx without pytorch
+# reducing size and increasing speed.
 class ONNXEmbedder:
     def __init__(self, model_path, model_file="model_quantized.onnx"):
         self.tokenizer = AutoTokenizer.from_pretrained(

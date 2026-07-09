@@ -14,7 +14,9 @@ client  = None
 def client_():
     global client
     if client is None:
-        client = QdrantClient(path="/opt/hyrin/frappe-bench/apps/gdoc/gdoc/qdrant/storage") 
+        QDRANT_URL = "http://127.0.0.1:6333"
+        QDRANT_API_KEY = "6e6206a947ae52b71e5b0ca3211409e96bb511a7e84c2a3cd4101b6289a0edfb"
+        client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
     return client
 
 

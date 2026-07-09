@@ -21,7 +21,7 @@ class BaseChunker:
 
         self.MAX_TOKENS = 512          # FIX: was `self.MAX_TOKENS - 512` (minus, not equals)
         self.batch_size = 100
-        self.collection = "gdoc"
+        self.collection = "gdoc_chunks"
 
     def run(self):
         raise NotImplementedError
@@ -47,9 +47,9 @@ class FlatChunker(BaseChunker):
 
     def run(self):
         frappe.db.set_value("GDOCs", self.doc_id, "changai_status", "Processing")
-
-        result = self.converter.convert(self.file_path)
-        doc = result.document
+        extract_file(file_path)
+        # result = self.converter.convert(self.file_path)
+        # doc = result.document
 
         chunker = HybridChunker(
             tokenizer=self.tokenizer,
@@ -121,9 +121,9 @@ class ParentChildChunker(BaseChunker):
 
     def chunk_doc(self):
         frappe.db.set_value("GDOCs", self.doc_id, "changai_status", "Processing")
-
-        result = self.converter.convert(self.file_path)  # FIX: self.file_path
-        doc = result.document
+        extract_text_from_file(file_path)
+        # result = self.converter.convert(self.file_path)  # FIX: self.file_path
+        # doc = result.document
 
         parent_chunker = HybridChunker(
             tokenizer=self.tokenizer,

@@ -58,38 +58,31 @@ def extract_text_blocks(page, table_bboxes, margin=2):
 
     return text_elems
 
-def extract_digital_pdf_elements(filename):
+def extract_digital_pdf_elements(filename) -> str:
     out = []
-    with pymupdf.open(filename) as doc:
+    with fitz.open(filename) as doc:          # fitz, since that's what you import
         for page in doc:
             tables = extract_tables(page)
             table_bboxes = [t["bbox"] for t in tables]
             texts = extract_text_blocks(page, table_bboxes)
 
-            # Convert tables’ dataframes to serializable structures
             for t in tables:
                 df = t["df"]
                 df = df.replace(r'^\s*$', None, regex=True)
-                df.dropna(axis=1, how="all")
+                df = df.dropna(axis=1, how="all")     # ← assignment was missing
                 df = df.fillna("")
                 out.append({
-                    "type": "table",
                     "page": page.number + 1,
-                    "bbox": t["bbox"],
-                    "rows": df.values.tolist(),
-                    "columns": df.columns.tolist()
+                    "y": t["bbox"][1],
+                    "content": df.to_markdown(index=False),   # table → markdown text
                 })
 
             for t in texts:
                 out.append({
-                    "type": "text",
-                    # "id": t["id"],
                     "page": page.number + 1,
-                    "bbox": t["bbox"],
-                    "text": t["text"]
+                    "y": t["bbox"][1],
+                    "content": t["text"],
                 })
-    # sort by page, then vertical position (y0) for better reading order[web:15]
-    out.sort(key=lambda e: (e["page"], e["bbox"][1]))
-    for elem in out:
-        elem.pop("bbox", None) 
-    return out
+
+    out.sort(key=lambda e: (e["page"], e["y"]))       # keep reading order
+    return "\n\n".join(e["content"] for e in out)
