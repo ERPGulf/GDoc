@@ -31,7 +31,7 @@
   {
    "fieldname": "parent_doc_id",
    "fieldtype": "Data",
-   "label": "Parent Doc Id"
+   "label": "Doc Id"
   },
   {
    "fieldname": "file_name",
@@ -46,7 +46,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-24 14:47:34.256666",
+ "modified": "2026-07-10 06:09:38.532447",
  "modified_by": "Administrator",
  "module": "GDoc",
  "name": "GDoc Parent Chunks",

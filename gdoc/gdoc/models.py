@@ -4,6 +4,7 @@ from fastembed import SparseTextEmbedding
 from transformers import AutoTokenizer
 from qdrant_client import QdrantClient
 from gdoc.gdoc.onnx_embedder import ONNXEmbedder
+import frappe
 
 reranker = None
 dense_model = None
@@ -14,9 +15,8 @@ client  = None
 def client_():
     global client
     if client is None:
-        QDRANT_URL = "http://127.0.0.1:6333"
-        QDRANT_API_KEY = "6e6206a947ae52b71e5b0ca3211409e96bb511a7e84c2a3cd4101b6289a0edfb"
-        client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+        doc = frappe.get_doc("Gdoc Settings")
+        client = QdrantClient(url = doc.qdrant_url, api_key = doc.qdrant_api_key)
     return client
 
 

@@ -1,4 +1,7 @@
 from gdoc.gdoc.retrieval import RAGPipeline
+import frappe
+import os
+from werkzeug.utils import secure_filename
 # ---------- module-level singleton: models load once per worker, not per query ----------
 _pipeline = None
 
@@ -16,7 +19,7 @@ def search(query: str):
     return get_pipeline().ask(query)
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def upload_doc():
     file = frappe.request.files.get("file")
     if not file:
@@ -33,9 +36,10 @@ def upload_doc():
         "content":   file.read(),
     })
     file_doc.insert(ignore_permissions=True)
+    full_file_path = file_doc.get_full_path()
     gdoc = frappe.get_doc({
         "doctype": "GDOCs",
-        "source": file_doc.file_url,
+        "source": full_file_path,
         "file_name": file_name,
         "file_type": file_type,
         "uploaded_by":   frappe.session.user,
@@ -43,7 +47,7 @@ def upload_doc():
         "assigned_to":""
     })
     gdoc.insert(ignore_permissions = True)
-    frappe.enqueue("gdoc.gdoc.ingestion.chunk_router", queue='long', doc_id= gdoc.name,file_name = file_name, file_name_ext= file_name_ext)
+    frappe.enqueue("gdoc.gdoc.ingestion.chunk_router", queue='long',file_type = file_type, doc_id= gdoc.name,file_name = file_name, file_path = full_file_path)
     return {
     "doc_id":  gdoc.name,
     "status":  "Pending",

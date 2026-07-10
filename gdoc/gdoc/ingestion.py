@@ -3,15 +3,19 @@ from docling.document_converter import DocumentConverter
 from qdrant_client.models import PointStruct, SparseVector, Filter, FieldCondition, MatchValue
 import frappe
 import uuid
-
+import os
 from gdoc.gdoc.models import dense_model_, sparse_model_, tokenizer_, client_
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from gdoc.gdoc.extract_text import extract_text_from_file,extract_tags
+
 
 
 class BaseChunker:
-    def __init__(self, doc_id, file_path, file_name):
+    def __init__(self, doc_id, file_path,file_type, file_name):
         self.doc_id = doc_id
         self.file_path = file_path
         self.file_name = file_name
+        self.file_type = file_type
 
         self.converter = DocumentConverter()
         self.dense_model = dense_model_()
@@ -47,26 +51,25 @@ class FlatChunker(BaseChunker):
 
     def run(self):
         frappe.db.set_value("GDOCs", self.doc_id, "changai_status", "Processing")
-        extract_file(file_path)
-        # result = self.converter.convert(self.file_path)
-        # doc = result.document
-
-        chunker = HybridChunker(
-            tokenizer=self.tokenizer,
-            max_tokens=self.MAX_TOKENS,
-            merge_peers=True,
+        text = extract_text_from_file(self.file_path,self.file_type)
+        self.ai_tags = extract_tags(text)
+        splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+            self.tokenizer,                 # counts real tokens, not characters
+            chunk_size=self.MAX_TOKENS,     # 512
+            chunk_overlap=50,
+            separators=["\n\n", "\n", ". ", " ", ""],   # try paragraph → line → sentence → word
         )
-        chunks = list(chunker.chunk(doc))
+        chunks = splitter.split_text(text)
 
         # Embed the contextualized text (heading breadcrumbs) — retrieves better.
-        texts = [chunker.contextualize(chunk=c) for c in chunks]
+        texts = [c for c in chunks]
         sparse_vectors = list(self.sparse_model.embed(texts))
         dense_vectors = self.dense_model.encode(
             texts, normalize_embeddings=True, batch_size=32
         )
 
         points = []
-        for i, chunk in enumerate(chunks):  # FIX: append now correctly inside the loop
+        for i, chunk in enumerate(texts):  # FIX: append now correctly inside the loop
             points.append(
                 PointStruct(
                     # FIX: was `id = i` — sequential ids collide across documents.
@@ -81,14 +84,14 @@ class FlatChunker(BaseChunker):
                         ),
                     },
                     payload={
-                        "text": chunk.text,
+                        "text": chunk,
                         "chunking_type":"flat",
-                        "meta": {
-                            "headings": chunk.meta.headings or [],
-                            "filename": chunk.meta.origin.filename
-                            if chunk.meta.origin
-                            else self.file_name,
-                        },
+                        # "meta": {
+                        #     # "headings": chunk.meta.headings or [],
+                        #     "filename": self.filename
+                        #     # if chunk.meta.origin
+                        #     # else self.file_name,
+                        # },
                         "file_name": self.file_name,
                         "url": self.file_path,
                         "doc_id": self.doc_id,
@@ -101,6 +104,15 @@ class FlatChunker(BaseChunker):
         self.upsert_points(points)
 
         frappe.db.set_value("GDOCs", self.doc_id, "index_status", "Chunked")
+        doc = frappe.get_doc("GDOCs",self.doc_id)
+        doc.set("ai_tags", [])
+        for tag in self.ai_tags:
+            if not frappe.db.exists("Document Tag", tag):
+                frappe.get_doc({
+                    "doctype": "Document Tag",
+                    "tag_name": tag
+                }).insert(ignore_permissions=True)
+            doc.append("ai_tags", {"tag": tag})
 
         return {"message": f"Upserted {len(points)} chunks to {self.collection}"}
 
@@ -112,7 +124,7 @@ class ParentChildChunker(BaseChunker):
 
     def store_parent_chunk(self, parent_chunk: dict):  # FIX: type hint was list
         doc = frappe.new_doc("GDoc Parent Chunks")
-        doc.text = parent_chunk["enriched_text"]
+        doc.text = parent_chunk["text"]
         doc.file_name = parent_chunk["file_name"]
         doc.parent_doc_id = parent_chunk["doc_id"]
         doc.url = parent_chunk["url"]
@@ -121,41 +133,42 @@ class ParentChildChunker(BaseChunker):
 
     def chunk_doc(self):
         frappe.db.set_value("GDOCs", self.doc_id, "changai_status", "Processing")
-        extract_text_from_file(file_path)
         # result = self.converter.convert(self.file_path)  # FIX: self.file_path
         # doc = result.document
-
-        parent_chunker = HybridChunker(
-            tokenizer=self.tokenizer,
-            max_tokens=self.PARENT_MAX_TOKENS,
-            merge_peers=True,
+        text = extract_text_from_file(self.file_path,self.file_type)
+        self.ai_tags = extract_tags(text)
+        splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+            self.tokenizer,                 # counts real tokens, not characters
+            chunk_size=self.MAX_TOKENS,     # 512
+            chunk_overlap=50,
+            separators=["\n\n", "\n", ". ", " ", ""],   # try paragraph → line → sentence → word
         )
-        chunks = parent_chunker.chunk(dl_doc=doc)
+        chunks = splitter.split_text(text)
 
         parent_chunks = []
         child_chunks = []
 
         for i, chunk in enumerate(chunks):
             parent_id = str(uuid.uuid4())
-            contextualized_text = parent_chunker.contextualize(chunk=chunk)
-            heading_path = chunk.meta.headings or []
-            section_title = heading_path[-1] if heading_path else self.file_name
+            # contextualized_text = splitter.contextualize(chunk=chunk)
+            # heading_path = chunk.meta.headings or []
+            # section_title = heading_path[-1] if heading_path else self.file_name
 
             parent_chunks.append(
                 {
                     "chunking_type":"parentchild",
-                    "enriched_text": contextualized_text,
+                    # "enriched_text": contextualized_text,
                     "pid": parent_id,
-                    "text": chunk.text,
+                    "text": chunk,
                     "file_name": self.file_name,
                     "doc_id": self.doc_id,
                     "chunk_index": i,
-                    "section_title": section_title,
+                    # "section_title": section_title,
                     "url": self.file_path,
                 }
             )
 
-            tokens = self.tokenizer.encode(contextualized_text)
+            tokens = self.tokenizer.encode(chunk)
             start = 0
             position = 0
             while start < len(tokens):
@@ -172,7 +185,7 @@ class ParentChildChunker(BaseChunker):
                         "url": self.file_path,
                         "cid": str(uuid.uuid4()),
                         "chunk_index": i,
-                        "section_title": section_title,
+                        # "section_title": section_title,
                         "child_position": position,
                     }
                 )
@@ -221,7 +234,7 @@ class ParentChildChunker(BaseChunker):
                         "cid": chunk["cid"],
                         "pid": chunk["pid"],
                         "chunk_index": chunk["chunk_index"],
-                        "section_title": chunk["section_title"],
+                        # "section_title": chunk["section_title"],
                         "doc_id": chunk["doc_id"],
                         "file_name": chunk["file_name"],
                         "url": chunk["url"],
@@ -230,20 +243,29 @@ class ParentChildChunker(BaseChunker):
                 )
             )
 
-        self.delete_existing_points(self.collection)
-        self.upsert_points(self.COLLECTION, points)
+        self.delete_existing_points()
+        self.upsert_points(points)
 
         frappe.db.set_value("GDOCs", self.doc_id, "changai_status", "Chunked")
+        doc = frappe.get_doc("GDOCs",self.doc_id)
+        doc.set("ai_tags", [])
+        for tag in self.ai_tags:
+            if not frappe.db.exists("Document Tag", tag):
+                frappe.get_doc({
+                    "doctype": "Document Tag",
+                    "tag_name": tag
+                }).insert(ignore_permissions=True)
+            doc.append("ai_tags", {"tag": tag})
 
         return {"message": f"Total upserted: {len(points)} child chunks"}
 
 
  
-def chunk_router(doc_id, file_name, file_name_ext):
+def chunk_router(doc_id,file_type, file_name,file_path):
     try:
         converter = DocumentConverter()
         tokenizer = tokenizer_()
-        full_file_path = frappe.get_site_path("private","files",file_name_ext)
+        full_file_path = file_path
         result = converter.convert(full_file_path)
         doc = result.document
         extracted_text = doc.export_to_markdown()
@@ -251,7 +273,7 @@ def chunk_router(doc_id, file_name, file_name_ext):
         TOKEN_THRESHOLD = 1500
         total_tokens   = len(tokenizer.encode(extracted_text))
         chunker_cls = FlatChunker if total_tokens < TOKEN_THRESHOLD  else ParentChildChunker
-        chunker_cls(doc_id, full_file_path, file_name).run()
+        chunker_cls(doc_id, full_file_path,file_type, file_name).run()
         frappe.db.set_value('GDOCs', doc_id, 'index_status', 'Completed')
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"chunk_router failed for {doc_id}")

@@ -4,6 +4,28 @@ import scipy.ndimage as ndi
 from PIL import Image
 import numpy as np
 import frappe
+from img2table.ocr import TesseractOCR
+from img2table.document import Image as Img2TableImage   # alias — avoid PIL clash
+
+def extract_tables_img2table(src_path, lang="eng"):
+    """Real ruled-line table detection. Runs on the ORIGINAL file, not preprocessed."""
+    try:
+        ocr = TesseractOCR(lang="eng")   # img2table wants "eng", not "eng+ara"
+        doc = Img2TableImage(src=src_path)
+        tables = doc.extract_tables(
+            ocr=ocr,
+            implicit_rows=False,
+            implicit_columns=False,
+            borderless_tables=False,   # this delivery note HAS ruled lines → keep False
+            min_confidence=50,
+        )
+        parts = []
+        for t in tables:
+            parts.append(t.df.to_markdown(index=False))
+        return "\n\n".join(parts)
+    except Exception as e:
+        frappe.log_error(str(e)[:140], "img2table failed")
+        return ""
 # you must not have borders in the image for running this.
 def _estimate_skew(gray: np.ndarray):
     """Robust skew estimate from near-horizontal Hough lines (text baselines).""" 
@@ -68,8 +90,30 @@ def maybe_binarize(gray):
     # 3. even lighting -> DON'T binarize; Tesseract's internal Otsu handles it
     return gray, "left_to_tesseract"
 
+def upscale_and_sharpen(gray):
+    try:
+        data = pytesseract.image_to_data(gray, output_type=pytesseract.Output.DICT)
+        heights = [data["height"][i] for i in range(len(data["text"]))
+                   if data["text"][i].strip() and int(data["conf"][i]) > 30]
+        median_h = np.median(heights) if heights else 0
+    except Exception:
+        median_h = 0
 
-def process_pil_image(pil, lang="eng+ara"):
+    # upscale only if text is small; target ~30px, cap 4x
+    if 0 < median_h < 20:
+        scale = min(30.0 / median_h, 4.0)
+        h, w = gray.shape
+        gray = cv2.resize(gray, (int(w * scale), int(h * scale)),
+                          interpolation=cv2.INTER_LANCZOS4)
+
+    # sharpen only if blurry — Laplacian variance measures focus
+    if cv2.Laplacian(gray, cv2.CV_64F).var() < 100:      # low = blurry
+        blurred = cv2.GaussianBlur(gray, (0, 0), 3)
+        gray = cv2.addWeighted(gray, 1.5, blurred, -0.5, 0)   # stronger
+    return gray
+
+
+def process_pil_image(pil,full_file_path, lang="eng+ara"):
     if pil.mode in("RGBA","LA","P"):
         rgba = pil.convert("RGBA")
         bg = Image.new("RGB", rgba.size, (255, 255, 255))
@@ -78,12 +122,13 @@ def process_pil_image(pil, lang="eng+ara"):
     arr = np.array(pil.convert("RGB")) 
     gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY) 
     gray, inv_tag = maybe_invert(gray)
-    h, w = gray.shape
-    if h < 1500:
-        #upscale
-        scale = 1500 / h
-        gray = cv2.resize(gray, (int(w * scale), 1500),
-                          interpolation=cv2.INTER_LANCZOS4)
+    gray = upscale_and_sharpen(gray)
+    # h, w = gray.shape
+    # if h < 1500:
+    #     #upscale
+    #     scale = 1500 / h
+    #     gray = cv2.resize(gray, (int(w * scale), 1500),
+    #                       interpolation=cv2.INTER_LANCZOS4)
 
     noise_value = estimate_noise(gray)
     if noise_value > 10:
@@ -96,16 +141,15 @@ def process_pil_image(pil, lang="eng+ara"):
                               borderMode=cv2.BORDER_REPLICATE)
 
     gray, tag = maybe_binarize(gray)
+    cv2.imwrite("/opt/hyrin/frappe-bench/apps/gdoc/gdoc/gdoc/docs/logis-output-sharpen.png",gray)
     parts     = []
-
-    table_text = _extract_tables_from_image(gray, lang)
-    if table_text:
-        parts.append(table_text)
 
     text = _extract_from_pil_image(gray, lang)
     if text:
         parts.append(text)
-
+    tables = extract_tables_img2table(full_file_path)
+    if tables:
+        parts.append(tables)
     return "\n\n".join(parts)
 
 def _ocr_blocks(pil_image: Image.Image, lang: str = "eng+ara") -> str:
@@ -276,7 +320,7 @@ def _extract_tables_from_image(pil_image: Image.Image, lang: str = "eng+ara") ->
         return ""
 def extract_image(full_file_path, lang):
     pil = Image.open(full_file_path)
-    res = process_pil_image(pil,lang)
+    res = process_pil_image(pil,full_file_path,lang)
     # text = pytesseract.image_to_string(gray,lang=lang)
     return res
     
@@ -298,12 +342,15 @@ def extract_scanned_pdf(full_file_path, lang):
             gray = cv2.warpAffine(gray, M, (w, h), flags=cv2.INTER_CUBIC,
                                 borderMode=cv2.BORDER_REPLICATE)
         binary,tag = maybe_binarize(gray)
-        table_text = _extract_tables_from_image(binary, lang)
-        if table_text:
-            parts.append(table_text)
-
         text = _extract_from_pil_image(binary, lang)
         if text:
             parts.append(text)
-    return  "\n\n".join(parts)
+        tables = extract_tables_img2table(full_file_path)
+        if tables:
+            parts.append(tables)
+        # table_text = _extract_tables_from_image(binary, lang)
+        # if table_text:
+        #     parts.append(table_text)
+
+    return "\n\n".join(parts)
 

@@ -5,6 +5,7 @@ import io
 import frappe
 import pytesseract
 import numpy as np
+from gdoc.gdoc.clients import call_gemini
 from PIL import Image
 from gdoc.gdoc.preprocess_image import extract_scanned_pdf,extract_image,process_pil_image
 from gdoc.gdoc.digital_pdf_extract import extract_digital_pdf_elements 
@@ -220,8 +221,7 @@ def _extract_from_text_file(full_file_path: str) -> str:
         frappe.log_error(str(e)[:140], "_extract_from_text_file failed")
         return ""
 
-
-def extract_text_from_file(full_file_path: str, file_ext: str, lang: str = "eng+ara") -> str:
+def extract_text_from_file(full_file_path: str,file_type:str, lang: str = "eng+ara") -> str:
     """
     Production-grade local extraction router.
     All OCR done locally by Tesseract — no cloud, no data leaves server.
@@ -238,8 +238,7 @@ def extract_text_from_file(full_file_path: str, file_ext: str, lang: str = "eng+
     OFFICE_FORMATS = [".docx", ".xlsx", ".pptx"]
     TEXT_FORMATS   = [".txt", ".csv", ".json", ".xml",
                       ".html", ".htm", ".md"]
-
-    ext = file_ext.lower()
+    ext = file_type.lower()
 
     if ext in PDF_FORMATS:
         return _extract_from_pdf(full_file_path, lang)
@@ -261,5 +260,48 @@ def extract_text_from_file(full_file_path: str, file_ext: str, lang: str = "eng+
         return ""
 
 
-if _name__ == "__main__" :
-    extract_text_from_file()
+def clean_tags(tags):
+    import re
+    out = []
+    for t in tags:
+        t = t.strip().lower()
+        if len(t)<3:continue
+        if re.fullmatch(r"[\d.,]+", t):continue
+        if re.match(r"col\d+|unnamed", t): continue
+        out.append(t)
+    return out
+
+def call_llm(tags):
+    sys_prompt = f"""
+You are a precise tagging engine.
+Given a list of candidate tags, return only the most accurate, relevant, and useful AI tags.
+Rules:
+- Select only tags that are strongly supported by the input.
+- Prefer specific, meaningful, domain-relevant tags over broad or vague ones.
+- Normalize tags to concise lowercase phrases unless the input clearly requires proper nouns or acronyms.
+- Do not invent new tags unless they are obvious normalized forms of the input tags.
+- Do not include explanations, reasoning, or extra text.
+- If no good tags exist, return an empty array.
+OUTPUT FORMAT — STRICT:
+Return ONLY a single valid JSON object, with no markdown formatting, no code fences, no explanations, no preamble, and no trailing commentary.
+The JSON must have exactly this top-level structure:
+{{
+  "ai_tags": [<string>, <string>, ...]
+}}
+"""
+    user_prompt =  f"{tags}"
+    output = call_gemini(user_prompt, sys_prompt)
+    return output["ai_tags"]
+
+def extract_tags(text:str):
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    import numpy as np
+    vectorizer = TfidfVectorizer(stop_words='english')
+    X = vectorizer.fit_transform([text])
+    scores = X.toarray()[0] #converting to array and taking the scores
+    terms = vectorizer.get_feature_names_out()
+    top_idx = scores.argsort()[::-1]
+    tags = [terms[i] for i in top_idx if scores[i] > 0]
+    out = clean_tags(tags)
+    out = call_llm(out)
+    return out

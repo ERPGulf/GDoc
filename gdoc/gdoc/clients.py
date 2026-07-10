@@ -146,7 +146,7 @@ def _clean_gemini_response_text(text: str) -> str:
     try:
         return json.loads(clean)  # always return dict, never raw string
     except json.JSONDecodeError as e:
-        frappe.log_error(f"Gemini returned invalid JSON: {raw}", "call_gemini: parse error")
+        frappe.log_error(f"Gemini returned invalid JSON: {str(e)}", "call_gemini: parse error")
         return None
     return text
 

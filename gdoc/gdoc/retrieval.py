@@ -5,9 +5,7 @@ from qdrant_client.models import SparseVector, Prefetch, FusionQuery, Fusion
 import frappe
 from docling.document_converter import DocumentConverter
 from gdoc.gdoc.models import dense_model_,sparse_model_,reranker_,tokenizer_,client_
-from gdoc.gdoc.parent_child_chunking import upsert_chunks
-from gdoc.gdoc.chunker import FlatChunker, ParentChildChunker
-from werkzeug.utils import secure_filename
+from gdoc.gdoc.ingestion import FlatChunker, ParentChildChunker
 import os
 # from langchain_ollama import OllamaEmbeddings
 
@@ -34,7 +32,7 @@ class RAGPipeline:
         self.sparse_model = sparse_model_()
         self.client = client_()
         self.reranker = reranker_()
-        self.llm = ChatOllama(model="mistral:7b", temperature=0)
+        self.llm = ChatOllama(model="mistral:7b", temperature=0,base_url="http://your-ollama-host:11434")
         self.prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
         self.chain = self.prompt | self.llm | StrOutputParser()
 
@@ -44,14 +42,16 @@ class RAGPipeline:
         """Hybrid search -> rerank -> parent expansion. Returns [{'text','url'}]."""
         dense_query_vector = self.dense_model.encode(
             query, normalize_embeddings=True
-        ).tolist()
+        )
 
         sparse_result = list(self.sparse_model.query_embed(query))[0]
         sparse_query_vector = SparseVector(
             indices=sparse_result.indices.tolist(),
             values=sparse_result.values.tolist(),
         )
-
+        if dense_query_vector.ndim == 2:        # (1, 768) -> (768,)
+            dense_query_vector = dense_query_vector[0]
+        dense_query_vector = dense_query_vector.tolist()
         results = self.client.query_points(
             collection_name=COLLECTION_NAME,           # FIX: was undefined
             prefetch=[
@@ -76,7 +76,7 @@ class RAGPipeline:
         seen_pids = set()
         for hit, _score in reranked:
             payload = hit.payload
-            if payload.get("chunking_type") == "parent_child":   # FIX: colon + one spelling
+            if payload.get("chunking_type") == "parentchild":   # FIX: colon + one spelling
                 pid = payload["pid"]
                 if pid in seen_pids:                             # FIX: dedupe parents
                     continue
@@ -116,7 +116,8 @@ class RAGPipeline:
         sources = list(dict.fromkeys(c["url"] for c in contexts if c.get("url")))
         return {"answer": answer, "sources": sources}
 
-if __name__ == "__main__":
+@frappe.whitelist(allow_guest=True)
+def searching(query):
     obj = RAGPipeline()
-    response = obj.retrive("What is ai?")
-    print(response)
+    contexts = obj.retrieve(query)
+    return contexts

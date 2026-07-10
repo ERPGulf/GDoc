@@ -1,4 +1,4 @@
-import fitz  # PyMuPDF
+import pymupdf
 import pandas as pd
 import json
 
@@ -60,7 +60,7 @@ def extract_text_blocks(page, table_bboxes, margin=2):
 
 def extract_digital_pdf_elements(filename) -> str:
     out = []
-    with fitz.open(filename) as doc:          # fitz, since that's what you import
+    with pymupdf.open(filename) as doc:          # fitz, since that's what you import
         for page in doc:
             tables = extract_tables(page)
             table_bboxes = [t["bbox"] for t in tables]
