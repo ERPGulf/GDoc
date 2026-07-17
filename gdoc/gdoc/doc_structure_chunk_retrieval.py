@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-# from langchain_ollama import ChatOllama
+from langchain_ollama import ChatOllama
 from qdrant_client.models import SparseVector, Prefetch, FusionQuery, Fusion
 import frappe
 from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
@@ -34,9 +34,9 @@ class RAGPipeline:
         self.sparse_model = sparse_model_()
         self.client = client_()
         self.reranker = reranker_()
-        # self.llm = ChatOllama(model="mistral:7b", temperature=0,base_url="http://your-ollama-host:11434")
-        # self.prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-        # self.chain = self.prompt | self.llm | StrOutputParser()
+        self.llm = ChatOllama(model="mistral:7b", temperature=0,base_url="http://your-ollama-host:11434")
+        self.prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
+        self.chain = self.prompt | self.llm | StrOutputParser()
 
     # ---------- retrieval ----------
 
@@ -111,20 +111,20 @@ class RAGPipeline:
             f"[Source: {c['url']}]\n{c['text']}" for c in contexts
         )
 
-    # def local_ask(self, query: str) -> dict:
-    #     if not query or not query.strip():
-    #         return {"answer": "Please provide a question.", "sources": []}
-    #     doc = ""
-    #     contexts = self.retrieve(query,doc)
-    #     if not contexts:
-    #         return {"answer": "I couldn't find anything relevant in the documents.",
-    #                 "sources": []}
+    def local_ask(self, query: str) -> dict:
+        if not query or not query.strip():
+            return {"answer": "Please provide a question.", "sources": []}
+        doc = ""
+        contexts = self.retrieve(query,doc)
+        if not contexts:
+            return {"answer": "I couldn't find anything relevant in the documents.",
+                    "sources": []}
 
-    #     answer = self.chain.invoke(
-    #         {"question": query, "context": self.format_context(contexts)}
-    #     )
-    #     sources = list(dict.fromkeys(c["url"] for c in contexts if c.get("url")))
-    #     return {"answer": answer, "sources": sources}
+        answer = self.chain.invoke(
+            {"question": query, "context": self.format_context(contexts)}
+        )
+        sources = list(dict.fromkeys(c["url"] for c in contexts if c.get("url")))
+        return {"answer": answer, "sources": sources}
     def retrieve_debug(self, query: str, doc_ids: Optional[List[str]] = None, limit: int = 10) -> dict:
         """Compare retrieval strategies side by side. Debug only."""
         doc_filter = None
@@ -224,14 +224,11 @@ class RAGPipeline:
         Put your full answer as a single readable string in the "answer" field — never as a list or data object."""
         user_prompt = self.dicision_prompt.format(query=query,contexts=self.format_context(contexts))
 
-        answer = call_model(user_prompt,self.dicision_system_prompt)
-        answer_text = answer.get("answer") if isinstance(answer, dict) else str(answer)
+        # answer = call_model(user_prompt,self.dicision_system_prompt)
+        # answer_text = answer.get("answer") if isinstance(answer, dict) else str(answer)
         sources = list(dict.fromkeys(c["url"] for c in contexts if c.get("url")))
-        return {
-        "question" : query,
-        "context" : contexts,
-        "answer": answer_text,
-        # "sources": sources,
+        return {"context":contexts
+        # "answer": answer_text, "sources": sources
         }
 
 
@@ -293,7 +290,7 @@ def generate_token_secure(api_key: str, api_secret: str, app_key: str):
             status=500,
             mimetype=APPLICATION_JSON,
         )
-
+    
 
 @frappe.whitelist(allow_guest=True)
 def searching(query: str, doc: str = None, rec: str = None):
@@ -308,19 +305,7 @@ def searching(query: str, doc: str = None, rec: str = None):
     return obj.remote_ask(query, docs)     # ← list, one call, done
 
 
-from changai.changai.api.v2.text2sql_pipeline_v2 import run_text2sql_pipeline
-import requests
-@frappe.whitelist(allow_guest=True)
-def call_changai(query:str= "None"):
-    x = run_text2sql_pipeline(user_question= query,source="gdoc")
-    return x
 
 
-# @frappe.whitelist(allow_guest=True)
-# def meta_search(assignned_to:str = "None",file_type : str = "None",uploaded_by : str = "None",ai_tags : str ="None"):
 
-def hypothetical_query():
-    return
-def multi_query():
-    return
 

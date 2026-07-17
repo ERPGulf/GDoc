@@ -8,7 +8,7 @@ from google import genai
 from google.genai import types
 from google.oauth2 import service_account
 from google.api_core import exceptions as google_exceptions
-from changai.changai.api.v2.schema_utils import (ChangAIConfig, CHANGAI_SETTINGS, CHANGAI_GUIDE_LINK, ERPGULF_LINK, settingsUrl)
+from changai.changai.api.v2.schema_utils import (ChangAIConfig, CHANGAI_SETTINGS, CHANGAI_GUIDE_LINK, ERPGULF_LINK,get_settings_url)
 _GEMINI_CLIENT = None
 _GEMINI_CONFIG = None
 APPLICATION_JSON = "application/json"
@@ -65,14 +65,14 @@ def _throw_missing_vertex_field(project_id: str, location: str, credentials_json
         frappe.throw(
             _("Gemini Project ID is missing.<br><br>Please <b> <a href='{1}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>Go to Settings Page</a> </b> and enter your <b>Gemini Project ID</b>.<br>"
             "Check Quick Start Guide 👇:<br><a href='{0}' target='_blank'>Click here</a><br>"
-            "<a href='{2}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>ERPGulf.com</a></b>.").format(CHANGAI_GUIDE_LINK,settingsUrl,ERPGULF_LINK),
+            "<a href='{2}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>ERPGulf.com</a></b>.").format(CHANGAI_GUIDE_LINK,get_settings_url(),ERPGULF_LINK),
             title=_("Missing Gemini Project ID"),
         )
     if not location:
         frappe.throw(
             _("Gemini Location is missing.<br><br>Please <b><a href='{1}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>Go to Settings Page</a></b> and enter your <b>Gemini Location</b>.<br>"
               "Check Quick Start Guide 👇:<br><a href='{0}' target='_blank'>Click here</a><br>"
-              "<a href='{2}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>ERPGulf.com</a></b>.").format(CHANGAI_GUIDE_LINK,settingsUrl,ERPGULF_LINK),
+              "<a href='{2}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>ERPGulf.com</a></b>.").format(CHANGAI_GUIDE_LINK,get_settings_url(),ERPGULF_LINK),
             title=_("Missing Gemini Location"),
         )
     if not credentials_json:
@@ -80,7 +80,7 @@ def _throw_missing_vertex_field(project_id: str, location: str, credentials_json
             _("Service Account Credentials are missing.<br><br>Please <b><a href='{1}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>Go to Settings Page</a></b> and enter your <b>Service Account Credential</b>.<br>"
             "Check Quick Start Guide 👇:<br><a href='{0}' target='_blank'>Click here</a>"
             "<a href='{2}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>ERPGulf.com</a></b>."
-).format(CHANGAI_GUIDE_LINK,settingsUrl,ERPGULF_LINK),
+).format(CHANGAI_GUIDE_LINK,get_settings_url(),ERPGULF_LINK),
             title=_("Missing Service Account Credentials"),
         )
 
@@ -108,7 +108,7 @@ def _get_api_key_client(config):
                 "<a href='{0}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>Click here</a><br>"
                 "<a href='{2}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>ERPGulf.com</a></b>."
 
-            ).format(CHANGAI_GUIDE_LINK,settingsUrl,ERPGULF_LINK),
+            ).format(CHANGAI_GUIDE_LINK,get_settings_url(),ERPGULF_LINK),
             title=_("Gemini Authentication Not Configured"),
         )
 
@@ -147,8 +147,6 @@ def _clean_gemini_response_text(text: str) -> str:
         return json.loads(clean)  # always return dict, never raw string
     except json.JSONDecodeError as e:
         frappe.log_error(f"Gemini returned invalid JSON: {str(e)}", "call_gemini: parse error")
-        return None
-    return text
 
 
 def _handle_gemini_api_exception(e: Exception) -> None:
@@ -293,15 +291,6 @@ def remote_embedder_request(formatted_q: str) -> Union[List[Any], str]:
         return "Error: " + str(e)
 
 
-def call_model(prompt: str, task: str = "llm",sys_prompt: str = "") -> Any:
-    config = ChangAIConfig.get()
-    if config["REMOTE"] and config["llm"] == "QWEN3":
-        return remote_llm_request_deploy_test(prompt=prompt, task=task)
-    else:
-        if config["llm"] == "Gemini":
-            return call_gemini(prompt,sys_prompt)
-
-
 def call_gemini(prompt: str,sys_prompt: str) -> Union[str, Dict[str, Any]]:
     try:
         # frappe.clear_document_cache(CHANGAI_SETTINGS)
@@ -309,6 +298,7 @@ def call_gemini(prompt: str,sys_prompt: str) -> Union[str, Dict[str, Any]]:
 
         gemini_config = types.GenerateContentConfig(
             system_instruction=sys_prompt,
+            response_mime_type="application/json",
         )
         response = client.models.generate_content(
             model=MODEL_ID,

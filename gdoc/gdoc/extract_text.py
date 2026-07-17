@@ -196,9 +196,9 @@ def _extract_from_pptx(full_file_path: str, lang: str = "eng+ara") -> str:
         return ""
 
 
-def _extract_from_office(full_file_path: str, lang: str = "eng+ara") -> str:
-    file_ext = os.path.splitext(full_file_path)[1]
-    ext = file_ext.lower()
+def _extract_from_office(full_file_path: str,file_type:str, lang: str = "eng+ara") -> str:
+    # file_ext = os.path.splitext(full_file_path)[1]
+    ext = file_type.lower()
     if ext in [".docx", ".doc"]:
         return _extract_from_docx(full_file_path, lang)
     elif ext in [".xlsx", ".xls"]:
@@ -221,7 +221,8 @@ def _extract_from_text_file(full_file_path: str) -> str:
         frappe.log_error(str(e)[:140], "_extract_from_text_file failed")
         return ""
 
-def extract_text_from_file(full_file_path: str,file_type:str, lang: str = "eng+ara") -> str:
+@frappe.whitelist(allow_guest=True)
+def extract_text_from_file(full_file_path: str,file_type: str, lang: str = "eng+ara") -> str:
     """
     Production-grade local extraction router.
     All OCR done locally by Tesseract — no cloud, no data leaves server.
@@ -241,13 +242,13 @@ def extract_text_from_file(full_file_path: str,file_type:str, lang: str = "eng+a
     ext = file_type.lower()
 
     if ext in PDF_FORMATS:
-        return _extract_from_pdf(full_file_path, lang)
+        return _extract_from_pdf(full_file_path,file_type, lang)
 
     elif ext in IMAGE_FORMATS:
         return extract_image(full_file_path,lang)
 
     elif ext in OFFICE_FORMATS:
-        return _extract_from_office(full_file_path, lang)
+        return _extract_from_office(full_file_path, file_type, lang)
 
     elif ext in TEXT_FORMATS:
         return _extract_from_text_file(full_file_path)
@@ -272,24 +273,15 @@ def clean_tags(tags):
     return out
 
 def call_llm(tags):
-    sys_prompt = f"""
-You are a precise tagging engine.
-Given a list of candidate tags, return only the most accurate, relevant, and useful AI tags.
-Rules:
-- Select only tags that are strongly supported by the input.
-- Prefer specific, meaningful, domain-relevant tags over broad or vague ones.
-- Normalize tags to concise lowercase phrases unless the input clearly requires proper nouns or acronyms.
-- Do not invent new tags unless they are obvious normalized forms of the input tags.
-- Do not include explanations, reasoning, or extra text.
-- If no good tags exist, return an empty array.
-OUTPUT FORMAT — STRICT:
-Return ONLY a single valid JSON object, with no markdown formatting, no code fences, no explanations, no preamble, and no trailing commentary.
-The JSON must have exactly this top-level structure:
-{{
-  "ai_tags": [<string>, <string>, ...]
-}}
-"""
-    user_prompt =  f"{tags}"
+    sys_prompt = """You are a tagging engine. Output JSON only.
+    From the candidate tags, select the 5 MOST useful for finding this document. Fewer is fine; never more than 5.
+    Rules:
+    - Tags: 1-4 words, lowercase (keep acronyms/proper nouns), hyphens only.
+    - Only tags strongly supported by the input. No inventing, no duplicates.
+    - Choose the best useful tags from the listed tags.
+    Output EXACTLY: {"ai_tags": ["tag1", "tag2"]}
+    Nothing else — no fences, no explanation. First char { last char }. Max 100 tokens."""
+    user_prompt =  f"Input Tags : {tags}"
     output = call_gemini(user_prompt, sys_prompt)
     return output["ai_tags"]
 
@@ -302,6 +294,21 @@ def extract_tags(text:str):
     terms = vectorizer.get_feature_names_out()
     top_idx = scores.argsort()[::-1]
     tags = [terms[i] for i in top_idx if scores[i] > 0]
-    out = clean_tags(tags)
+    out = clean_tags(tags)[:25]
     out = call_llm(out)
     return out
+
+
+def push_aitags(doc_id: str,text : str):
+    ai_tags = extract_tags(text)
+    doc = frappe.get_doc("GDOCs",doc_id)
+    doc.set("ai_tags", [])
+    for tag in ai_tags:
+        if not frappe.db.exists("Document Tag", tag):
+            frappe.get_doc({
+                "doctype": "Document Tag",
+                "tag_name": tag
+            }).insert(ignore_permissions=True)
+        doc.append("ai_tags", {"tag": tag})
+        doc.save(ignore_permissions = True)
+    return "Failure"

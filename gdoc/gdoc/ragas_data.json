@@ -1,0 +1,42 @@
+[
+    {
+        "question": "What is the duration of the agreement?",
+        "ground_truth": "The agreement remains valid for three years from the effective date."
+    },
+    {
+        "question": "Who is responsible for providing the monthly quality performance report?",
+        "ground_truth": "The supplier is responsible for submitting the monthly quality performance report."
+    },
+    {
+        "question": "What should the supplier do before implementing a process change?",
+        "ground_truth": "The supplier must obtain written approval before implementing any process change."
+    },
+    {
+        "question": "How much notice is required before terminating the agreement?",
+        "ground_truth": "A written notice of 30 days is required before termination."
+    },
+    {
+        "question": "What happens if the supplier fails to meet the agreed delivery schedule?",
+        "ground_truth": "The customer may apply contractual remedies specified in the agreement."
+    },
+    {
+        "question": "Who owns the intellectual property created under the agreement?",
+        "ground_truth": "The customer retains ownership of all intellectual property created under the agreement."
+    },
+    {
+        "question": "What records must the supplier maintain for audit purposes?",
+        "ground_truth": "The supplier must maintain quality and production records for the retention period specified in the agreement."
+    },
+    {
+        "question": "Under what circumstances can the customer conduct an audit of the supplier?",
+        "ground_truth": "The customer may conduct audits as specified in the agreement after providing the required notice."
+    },
+    {
+        "question": "What confidentiality obligations continue after the agreement ends?",
+        "ground_truth": "The confidentiality obligations survive the termination of the agreement for the specified period."
+    },
+    {
+        "question": "What standards are suppliers required to follow regarding labor practices?",
+        "ground_truth": "Suppliers must comply with the labor standards and ethical requirements defined in the agreement."
+    }
+]

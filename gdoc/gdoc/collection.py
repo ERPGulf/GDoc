@@ -12,6 +12,7 @@ from gdoc.gdoc.models import client_
 def create_collection(COLLECTION_NAME, DENSE_DIM):
     client = None
     client = client_()
+    client.delete_collection(collection_name=COLLECTION_NAME)
     if not client.collection_exists(COLLECTION_NAME):
         client.create_collection(
             collection_name=COLLECTION_NAME,
@@ -55,5 +56,8 @@ def create_collection(COLLECTION_NAME, DENSE_DIM):
         }
 
 if __name__ == "__main__":
-    # create_collection("gdoc_chunks",768)
-    print(client_().get_collections())
+    create_collection("gdoc_chunks",768)
+    from gdoc.gdoc.models import client_
+
+    client = client_()
+    print(client.get_collections())

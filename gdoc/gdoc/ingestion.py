@@ -4,10 +4,9 @@ from qdrant_client.models import PointStruct, SparseVector, Filter, FieldConditi
 import frappe
 import uuid
 import os
-from gdoc.gdoc.models import dense_model_, sparse_model_, tokenizer_, client_
+from gdoc.gdoc.models import  dense_model_,tokenizer_,sparse_model_, client_
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from gdoc.gdoc.extract_text import extract_text_from_file,extract_tags
-
+from gdoc.gdoc.extract_text import extract_text_from_file,push_aitags
 
 
 class BaseChunker:
@@ -52,7 +51,10 @@ class FlatChunker(BaseChunker):
     def run(self):
         frappe.db.set_value("GDOCs", self.doc_id, "changai_status", "Processing")
         text = extract_text_from_file(self.file_path,self.file_type)
-        self.ai_tags = extract_tags(text)
+        try:
+            push_aitags(self.doc_id,text)
+        except Exception as e:
+            frappe.log_error(frappe.get_traceback(), f"push_aitags failed for {self.doc_id}")
         splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
             self.tokenizer,                 # counts real tokens, not characters
             chunk_size=self.MAX_TOKENS,     # 512
@@ -62,7 +64,14 @@ class FlatChunker(BaseChunker):
         chunks = splitter.split_text(text)
 
         # Embed the contextualized text (heading breadcrumbs) — retrieves better.
-        texts = [c for c in chunks]
+        texts = [f"search_document: {c}" for c in chunks] 
+        with open("/opt/hyrin/frappe-bench/apps/gdoc/gdoc/gdoc/ragas_data_small_docs.txt", "w", encoding="utf-8") as f:
+            for text in texts:
+                chunk = {
+                    "chunk": text # make sure when fetching this falt chunks take upto 5 or 10 in single call 
+                    # with claude
+                }
+                f.write(json.dumps(chunk, ensure_ascii=False) + "\n")
         sparse_vectors = list(self.sparse_model.embed(texts))
         dense_vectors = self.dense_model.encode(
             texts, normalize_embeddings=True, batch_size=32
@@ -105,22 +114,22 @@ class FlatChunker(BaseChunker):
 
         frappe.db.set_value("GDOCs", self.doc_id, "index_status", "Chunked")
         doc = frappe.get_doc("GDOCs",self.doc_id)
-        doc.set("ai_tags", [])
-        for tag in self.ai_tags:
-            if not frappe.db.exists("Document Tag", tag):
-                frappe.get_doc({
-                    "doctype": "Document Tag",
-                    "tag_name": tag
-                }).insert(ignore_permissions=True)
-            doc.append("ai_tags", {"tag": tag})
+        # doc.set("ai_tags", [])
+        # for tag in self.ai_tags:
+        #     if not frappe.db.exists("Document Tag", tag):
+        #         frappe.get_doc({
+        #             "doctype": "Document Tag",
+        #             "tag_name": tag
+        #         }).insert(ignore_permissions=True)
+        #     doc.append("ai_tags", {"tag": tag})
 
         return {"message": f"Upserted {len(points)} chunks to {self.collection}"}
 
 
 class ParentChildChunker(BaseChunker):
     PARENT_MAX_TOKENS = 800
-    CHILD_SIZE = 150
-    OVERLAP = 20
+    CHILD_SIZE = 256
+    OVERLAP = 30
 
     def store_parent_chunk(self, parent_chunk: dict):  # FIX: type hint was list
         doc = frappe.new_doc("GDoc Parent Chunks")
@@ -133,70 +142,62 @@ class ParentChildChunker(BaseChunker):
 
     def chunk_doc(self):
         frappe.db.set_value("GDOCs", self.doc_id, "changai_status", "Processing")
-        # result = self.converter.convert(self.file_path)  # FIX: self.file_path
-        # doc = result.document
-        text = extract_text_from_file(self.file_path,self.file_type)
-        self.ai_tags = extract_tags(text)
-        splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
-            self.tokenizer,                 # counts real tokens, not characters
-            chunk_size=self.MAX_TOKENS,     # 512
+        text = extract_text_from_file(self.file_path, self.file_type)
+        try:
+            push_aitags(self.doc_id, text)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"push_aitags failed for {self.doc_id}")
+
+        # PARENT splitter (what you have)
+        parent_splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+            self.tokenizer,
+            chunk_size=self.PARENT_MAX_TOKENS,      # use 800, not MAX_TOKENS — makes the constant real
             chunk_overlap=50,
-            separators=["\n\n", "\n", ". ", " ", ""],   # try paragraph → line → sentence → word
+            separators=["\n\n", "\n", ". ", " ", ""],
         )
-        chunks = splitter.split_text(text)
 
-        parent_chunks = []
-        child_chunks = []
+        # NEW: CHILD splitter — same class, smaller size
+        child_splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+            self.tokenizer,
+            chunk_size=self.CHILD_SIZE,             # 256
+            chunk_overlap=self.OVERLAP,             # 30
+            separators=["\n\n", "\n", ". ", " ", ""],
+        )
 
-        for i, chunk in enumerate(chunks):
-            parent_id = str(uuid.uuid4())
-            # contextualized_text = splitter.contextualize(chunk=chunk)
-            # heading_path = chunk.meta.headings or []
-            # section_title = heading_path[-1] if heading_path else self.file_name
+        parent_chunks, child_chunks = [], []
 
-            parent_chunks.append(
-                {
-                    "chunking_type":"parentchild",
-                    # "enriched_text": contextualized_text,
+        for i, parent_text in enumerate(parent_splitter.split_text(text)):
+            parent_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{self.doc_id}-parent-{i}"))
+            parent_chunks.append({
+                "chunking_type": "parentchild",
+                "pid": parent_id,
+                "text": parent_text,
+                "file_name": self.file_name,
+                "doc_id": self.doc_id,
+                "chunk_index": i,
+                "url": self.file_path,
+            })
+
+            # children via recursive splitter — replaces the whole while-loop
+            for position, child_text in enumerate(child_splitter.split_text(parent_text)):
+                child_chunks.append({
+                    "chunking_type": "parentchild",
+                    "text": child_text,
                     "pid": parent_id,
-                    "text": chunk,
-                    "file_name": self.file_name,
                     "doc_id": self.doc_id,
-                    "chunk_index": i,
-                    # "section_title": section_title,
+                    "file_name": self.file_name,
                     "url": self.file_path,
-                }
-            )
+                    "cid": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{self.doc_id}-child-{i}-{position}")),
+                    "chunk_index": i,
+                    "child_position": position,
+                })
 
-            tokens = self.tokenizer.encode(chunk)
-            start = 0
-            position = 0
-            while start < len(tokens):
-                end = min(start + self.CHILD_SIZE, len(tokens))
-                child_text = self.tokenizer.decode(
-                    tokens[start:end], skip_special_tokens=True
-                )
-                child_chunks.append(
-                    {
-                        "text": child_text,
-                        "pid": parent_id,
-                        "doc_id": self.doc_id,
-                        "file_name": self.file_name,
-                        "url": self.file_path,
-                        "cid": str(uuid.uuid4()),
-                        "chunk_index": i,
-                        # "section_title": section_title,
-                        "child_position": position,
-                    }
-                )
-                position += 1
-                # FIX: infinite loop — when end hit len(tokens),
-                # `start = end - OVERLAP` moved start BACKWARDS forever.
-                if end == len(tokens):
-                    break
-                start = end - self.OVERLAP
 
-        child_texts = [c["text"] for c in child_chunks]
+        child_texts = [
+            f"search_document: {c['text']}"
+            for c in child_chunks
+        ]
+
         sparse_vectors = list(self.sparse_model.embed(child_texts))
         dense_vectors = self.dense_model.encode(
             child_texts, normalize_embeddings=True, batch_size=32
@@ -248,14 +249,15 @@ class ParentChildChunker(BaseChunker):
 
         frappe.db.set_value("GDOCs", self.doc_id, "changai_status", "Chunked")
         doc = frappe.get_doc("GDOCs",self.doc_id)
-        doc.set("ai_tags", [])
-        for tag in self.ai_tags:
-            if not frappe.db.exists("Document Tag", tag):
-                frappe.get_doc({
-                    "doctype": "Document Tag",
-                    "tag_name": tag
-                }).insert(ignore_permissions=True)
-            doc.append("ai_tags", {"tag": tag})
+        # doc.set("ai_tags", [])
+        # if self.ai_tags:
+        #     for tag in self.ai_tags:
+        #         if not frappe.db.exists("Document Tag", tag):
+        #             frappe.get_doc({
+        #                 "doctype": "Document Tag",
+        #                 "tag_name": tag
+        #             }).insert(ignore_permissions=True)
+        #         doc.append("ai_tags", {"tag": tag})
 
         return {"message": f"Total upserted: {len(points)} child chunks"}
 
